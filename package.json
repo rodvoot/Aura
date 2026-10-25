@@ -1,0 +1,9 @@
+{
+  "name": "aura-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reference-guided Gemini image generation studio",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

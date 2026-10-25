@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1A1A1A">
+    <title>Aura | Kinematic Character & Batch Synthesis Studio v100.8</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Courier+Prime&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'neutral-bg': '#F9F7F2',
+                        'studio-dark': '#1A1A1A',
+                        'studio-card': '#242424',
+                        'accent-gold': '#C5A059',
+                        'accent-terra': '#BC5D41',
+                        'accent-dream': '#6366f1',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                        mono: ['Courier Prime', 'Courier New', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #F9F7F2; color: #1A1A1A; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.6); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05); }
+        .dark-glass { background: rgba(26, 26, 26, 0.85); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glow-text { text-shadow: 0 0 20px rgba(197, 160, 89, 0.4); }
+        
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        
+        /* Toast Notifications */
+        #toast-container { position: fixed; bottom: 2rem; right: 2rem; z-index: 100; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none; }
+        .studio-toast { background: #1A1A1A; color: #fff; padding: 1rem 1.5rem; border-radius: 1rem; font-size: 0.875rem; box-shadow: 0 10px 25px rgba(0,0,0,0.25); transform: translateY(100%); opacity: 0; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-left: 4px solid #C5A059; pointer-events: auto; }
+        .studio-toast.show { transform: translateY(0); opacity: 1; }
+        .studio-toast.error { border-left-color: #BC5D41; }
+
+        /* Film Grain Effect */
+        .film-grain { position: fixed; inset: 0; pointer-events: none; z-index: 9999; opacity: 0.035; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); }
+
+        /* Loader Animation */
+        .loader-ring { border: 3px solid rgba(197, 160, 89, 0.2); border-top: 3px solid #C5A059; border-radius: 50%; width: 44px; height: 44px; animation: spin 0.8s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Viewport Image Zoom/Pan */
+        .viewport-image { transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); cursor: grab; }
+        .viewport-image:active { cursor: grabbing; }
+
+        /* Radar Pulse */
+        .radar-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.4); } }
+
+        /* Tactile Target Overlay Nodes */
+        .target-node { transition: all 0.2s ease-in-out; }
+        .target-node:hover { transform: scale(1.2); background-color: #C5A059; box-shadow: 0 0 15px #C5A059; }
+    </style>
+</head>
+<body class="min-h-screen selection:bg-accent-gold/30 antialiased">
+    <div class="film-grain"></div>
+    <div id="toast-container"></div>
+
+    <!-- Navigation Bar -->
+    <nav class="fixed top-0 w-full z-50 glass-panel border-b border-gray-200/50">
+        <div class="max-w-7xl mx-auto px-4 md:px-6 h-16 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 bg-studio-dark rounded-full flex items-center justify-center text-accent-gold font-serif italic font-bold text-xl shadow-md">A</div>
+                <div class="flex flex-col">
+                    <span class="font-serif text-lg tracking-tight font-bold flex items-center leading-tight">
+                        Aura Studio <span class="font-sans text-[10px] font-semibold uppercase tracking-widest text-accent-gold bg-accent-gold/10 px-2 py-0.5 rounded-full ml-2">v100.8 MASTER</span>
+                    </span>
+                    <span class="text-[9px] text-gray-400 tracking-wider">Reference-Guided Image Generation & High-Resolution Export Studio</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-3 md:space-x-5">
+                <button onclick="scrollToSection('studio')" class="text-xs font-semibold hover:text-accent-gold transition-colors hidden sm:block">Studio</button>
+                <button onclick="scrollToSection('batch-vault')" class="text-xs font-semibold hover:text-accent-gold transition-colors hidden sm:block">⚡ Batch Vault</button>
+                <button onclick="scrollToSection('context-importer')" class="text-xs font-semibold text-accent-dream hover:underline hidden md:block">📥 Context Memory</button>
+                
+                <button onclick="toggleMagicDirector()" class="bg-gradient-to-r from-accent-gold to-accent-terra text-white px-3.5 py-1.5 rounded-full text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5">
+                    <span>✨ Magic Director</span>
+                </button>
+
+                <button onclick="toggleSettingsModal()" class="text-gray-500 hover:text-studio-dark transition-colors p-1" title="Engine Settings">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3.0 11-6 0 3 3 0 016 0z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Header Hero -->
+    <header class="pt-28 pb-8 px-6 max-w-5xl mx-auto text-center">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-gold/10 text-accent-gold border border-accent-gold/20 text-[11px] font-semibold mb-4">
+            <span>⚡ Gemini 3.1 Flash Image Engine & Spatial Consistency Locking</span>
+        </div>
+        <h1 class="text-4xl md:text-6xl font-serif font-bold mb-4 text-studio-dark leading-tight tracking-tight">
+            Synthesize Character <br><span class="italic text-accent-gold glow-text">Anatomy, Atmosphere & Spatial Optics</span>
+        </h1>
+        <p class="text-gray-600 max-w-2xl mx-auto text-xs md:text-sm font-light leading-relaxed">
+            Multi-anchor visual locking, batch generation, 360° orbital camera control, spatial radar steering, and native 1K, 2K and 4K image outputs.
+        </p>
+        <div class="flex flex-wrap justify-center gap-3 mt-6">
+            <button onclick="loadPreset('romantic')" class="bg-studio-dark text-white border border-studio-dark px-5 py-2 rounded-full text-xs font-bold hover:bg-accent-gold hover:border-accent-gold transition-all shadow-md">
+                ❤️ Romantic Sunset Embrace
+            </button>
+            <button onclick="loadPreset('athletic')" class="bg-accent-gold/10 text-accent-gold border border-accent-gold/30 px-5 py-2 rounded-full text-xs font-bold hover:bg-accent-gold hover:text-white transition-all shadow-sm">
+                🏋️‍♀️ Athletic Gymnast Fit
+            </button>
+            <button onclick="loadPreset('glamour')" class="bg-white border border-gray-200 text-gray-700 px-5 py-2 rounded-full text-xs font-bold hover:border-accent-gold transition-all shadow-sm">
+                ✨ Glamour Satin & Silk
+            </button>
+        </div>
+    </header>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-studio-dark/70 backdrop-blur-md hidden px-4">
+        <div class="bg-white w-full max-w-md p-7 rounded-[2rem] shadow-2xl space-y-5 border border-gray-200">
+            <div class="flex justify-between items-center">
+                <h3 class="font-serif text-xl font-bold italic text-studio-dark">⚙️ Engine & API Settings</h3>
+                <button onclick="toggleSettingsModal()" class="text-gray-400 hover:text-studio-dark text-lg font-bold">✕</button>
+            </div>
+            <div class="space-y-4 text-xs">
+                <div>
+                    <label class="block font-bold text-gray-500 uppercase mb-1">Gemini API Model</label>
+                    <select id="api-model-select" class="w-full bg-neutral-bg border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-accent-gold">
+                        <option value="gemini-3.1-flash-image">Gemini 3.1 Flash Image · Balanced quality and speed</option>
+                        <option value="gemini-3-pro-image">Gemini 3 Pro Image · Premium detail</option>
+                        <option value="gemini-3.1-flash-lite-image">Gemini 3.1 Flash Lite Image · Fastest, 1K only</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-gray-500 uppercase mb-1">Export Format</label>
+                    <select id="export-format-select" class="w-full bg-neutral-bg border border-gray-200 rounded-xl px-3 py-2 outline-none">
+                        <option value="jpeg">JPEG (.jpg)</option>
+                        <option value="png">PNG (.png)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-gray-500 uppercase mb-1">Aura Access Password</label>
+                    <input id="app-access-password" type="password" autocomplete="current-password" placeholder="Only needed if the deployment is password-protected" class="w-full bg-neutral-bg border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-accent-gold">
+                    <p class="text-[10px] text-gray-400 mt-1">This is the site's access password, not your Gemini API key. It stays in this browser session.</p>
+                </div>
+                <div>
+                    <label class="block font-bold text-gray-500 uppercase mb-1">Generated Image Size</label>
+                    <select id="image-size-select" class="w-full bg-neutral-bg border border-gray-200 rounded-xl px-3 py-2 outline-none">
+                        <option value="1K">1K · Faster / lower output size</option>
+                        <option value="2K" selected>2K · Balanced</option>
+                        <option value="4K">4K · Highest supported native output</option>
+                    </select>
+                    <p class="text-[10px] text-gray-400 mt-1">Gemini 3.1 Flash Lite supports 1K output only. Native 8K output is not offered. Gemini 3 image models support up to 4K here.</p>
+                </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="toggleSettingsModal()" class="flex-1 text-xs font-bold text-gray-500 py-2.5 border border-gray-200 rounded-xl">Cancel</button>
+                <button onclick="saveSettings()" class="flex-1 bg-studio-dark text-white font-bold py-2.5 rounded-xl hover:bg-accent-gold transition-all text-xs shadow-md">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Magic Director Modal -->
+    <div id="magic-modal" class="fixed inset-0 z-[70] flex items-center justify-center bg-studio-dark/60 backdrop-blur-md hidden px-4">
+        <div class="bg-neutral-bg w-full max-w-md p-7 rounded-[2rem] shadow-2xl space-y-5 border border-accent-gold/40">
+            <div class="text-center">
+                <h3 class="font-serif text-2xl italic font-bold text-accent-gold">✨ Magic Director</h3>
+                <p class="text-xs text-gray-500 uppercase tracking-widest mt-1">Preset Atmospheric Configurations</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-xs">
+                <button onclick="runMagicConfig('Romantic Warmth')" class="p-3 bg-white border border-gray-200 rounded-xl font-bold hover:border-accent-gold transition-all text-left">
+                    ❤️ Intimate Warmth
+                    <span class="block text-[10px] font-normal text-gray-400 mt-0.5">Golden lighting, cozy bedroom setting</span>
+                </button>
+                <button onclick="runMagicConfig('Athletic Gymnastics')" class="p-3 bg-white border border-gray-200 rounded-xl font-bold hover:border-accent-gold transition-all text-left">
+                    🤸 Athletic Gymnast
+                    <span class="block text-[10px] font-normal text-gray-400 mt-0.5">Tense shoulders, sweat sheen, active posture</span>
+                </button>
+                <button onclick="runMagicConfig('Glamour Studio')" class="p-3 bg-white border border-gray-200 rounded-xl font-bold hover:border-accent-gold transition-all text-left">
+                    ✨ Glamour Silk & Lace
+                    <span class="block text-[10px] font-normal text-gray-400 mt-0.5">Key light, silk slip dress, soft glow</span>
+                </button>
+                <button onclick="runMagicConfig('High Fashion')" class="p-3 bg-white border border-gray-200 rounded-xl font-bold hover:border-accent-gold transition-all text-left">
+                    📸 Vogue Editorial
+                    <span class="block text-[10px] font-normal text-gray-400 mt-0.5">Armani silk charmesuse, deep backless</span>
+                </button>
+            </div>
+            <button onclick="toggleMagicDirector()" class="w-full text-xs font-bold text-gray-400 py-2 hover:text-studio-dark">Close Director</button>
+        </div>
+    </div>
+
+    <!-- Main Studio Grid -->
+    <main id="studio" class="max-w-7xl mx-auto px-4 md:px-6 pb-20 grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
+        
+        <!-- Left Column: Controls Architect -->
+        <div class="lg:col-span-5 space-y-6">
+            <div class="glass-panel p-6 md:p-8 rounded-3xl space-y-6 border border-gray-200/80">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xs font-bold uppercase tracking-widest text-gray-500">Prompt Architect & Batch Rig</h2>
+                    <span id="engine-badge" class="px-2.5 py-1 rounded bg-accent-gold/10 text-accent-gold text-[10px] font-bold tracking-wider">GEMINI IMAGE</span>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Visual Reference Anchors -->
+                    <div class="relative group">
+                         <label class="block text-xs font-bold mb-2 text-gray-500 uppercase flex justify-between items-center">
+                            <span>Visual Reference Anchors (Character Consistency)</span>
+                            <div class="flex items-center gap-3">
+                                <button onclick="clearReferences(event)" id="clear-refs-btn" class="hidden text-[10px] text-red-500 hover:text-red-700 font-bold transition-colors relative z-20">CLEAR ALL</button>
+                                <span id="anchor-status" class="text-accent-terra hidden bg-accent-terra/10 px-2 py-0.5 rounded font-mono text-[10px]">0 Locked</span>
+                            </div>
+                         </label>
+                        <input type="file" id="ref-upload" accept="image/*" multiple onchange="handleReferenceUpload(this)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 top-6">
+                        
+                        <div id="ref-preview-area" class="w-full min-h-[5.5rem] p-3 bg-neutral-bg border border-dashed border-gray-300 rounded-2xl flex flex-wrap gap-2 items-center justify-center transition-all group-hover:border-accent-gold group-hover:bg-white overflow-hidden relative">
+                            <div id="ref-placeholder" class="text-center w-full pointer-events-none">
+                                <span class="text-2xl block mb-1">⚓</span>
+                                <span class="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Drop Reference Images (Guides character, style and pose)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Semantic Spatial Radar -->
+                    <div class="relative">
+                        <label class="block text-xs font-bold mb-2 text-gray-500 uppercase flex justify-between items-center">
+                            <span>🌌 Semantic Radar (Aesthetic Auto-Steer)</span>
+                            <span id="radar-coords" class="text-[10px] text-accent-gold font-mono bg-accent-gold/10 px-2 py-0.5 rounded shadow-sm">[ 0.00, 0.00 ]</span>
+                        </label>
+                        <div id="radar-container" class="w-full h-32 bg-studio-dark rounded-2xl relative overflow-hidden border border-gray-800 cursor-crosshair shadow-inner touch-none">
+                            <div class="absolute inset-0 opacity-15" style="background-image: linear-gradient(#C5A059 1px, transparent 1px), linear-gradient(90deg, #C5A059 1px, transparent 1px); background-size: 20px 20px;"></div>
+                            <div class="absolute inset-0 pointer-events-none">
+                                <div class="absolute top-1/2 left-0 right-0 h-px bg-accent-gold/30"></div>
+                                <div class="absolute left-1/2 top-0 bottom-0 w-px bg-accent-gold/30"></div>
+                            </div>
+                            <div class="absolute top-2 left-1/2 -translate-x-1/2 text-[9px] text-gray-400 uppercase tracking-widest pointer-events-none font-bold">Ethereal / Dreamy</div>
+                            <div class="absolute bottom-2 left-1/2 -translate-x-1/2 text-[9px] text-gray-400 uppercase tracking-widest pointer-events-none font-bold">Raw / Athletic</div>
+                            <div class="absolute left-[-1.2rem] top-1/2 -translate-y-1/2 text-[9px] text-gray-400 uppercase tracking-widest pointer-events-none origin-center -rotate-90 font-bold">Intimate</div>
+                            <div class="absolute right-[-1.5rem] top-1/2 -translate-y-1/2 text-[9px] text-gray-400 uppercase tracking-widest pointer-events-none origin-center rotate-90 font-bold">Grand Scale</div>
+                            
+                            <div id="radar-node" class="absolute top-1/2 left-1/2 w-4 h-4 bg-accent-gold rounded-full -translate-x-1/2 -translate-y-1/2 shadow-[0_0_20px_#C5A059] transition-transform duration-75">
+                                <div class="absolute inset-0 rounded-full radar-pulse bg-accent-gold opacity-60"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Individual Body Composition Sliders -->
+                    <div class="p-4 bg-neutral-bg rounded-2xl border border-gray-200 space-y-3">
+                        <span class="text-xs font-bold text-gray-500 uppercase block">📐 Anatomical Build & Contour Controls</span>
+                        
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center text-[10px] font-bold text-gray-500">
+                                <span>Physique Type:</span>
+                                <span id="physique-val-display" class="font-mono text-accent-gold">Athletic Toned</span>
+                            </div>
+                            <input type="range" id="slider-physique" min="0" max="100" value="45" oninput="updateBodySliders()" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-accent-gold">
+                            <div class="flex justify-between text-[9px] text-gray-400 font-mono">
+                                <span>Slender / Lean</span>
+                                <span>Athletic Fit</span>
+                                <span>Soft Curve Contour</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 pt-1">
+                            <div class="flex justify-between items-center text-[10px] font-bold text-gray-500">
+                                <span>Skin Finish & Sweat Physics:</span>
+                                <span id="sweat-val-display" class="font-mono text-accent-gold">Glistening Sheen</span>
+                            </div>
+                            <input type="range" id="slider-sweat" min="0" max="100" value="60" oninput="updateBodySliders()" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-accent-gold">
+                        </div>
+                    </div>
+
+                    <!-- 360 Camera Orbit Controls -->
+                    <div class="p-4 bg-neutral-bg rounded-2xl border border-gray-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-gray-500 uppercase">📷 360° Camera Viewpoint Orbit</span>
+                            <span id="camera-angle-readout" class="text-[10px] font-mono text-accent-gold bg-accent-gold/10 px-2 py-0.5 rounded">Orbit: 0° (Front)</span>
+                        </div>
+                        <input type="range" id="camera-yaw" min="0" max="360" value="0" step="5" oninput="updateCameraAngle()" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-accent-gold">
+                    </div>
+
+                    <!-- Core Prompt Intent -->
+                    <div class="relative">
+                        <label class="block text-xs font-bold mb-2 text-gray-500 uppercase flex justify-between items-center">
+                            <span>Core Intent / Character Prompt</span>
+                            <button onclick="cleanPromptText()" class="text-[10px] text-accent-gold hover:text-accent-terra font-bold flex items-center gap-1 transition-colors relative z-20">
+                                <span>✨ CLEAN DUPLICATES</span>
+                            </button>
+                        </label>
+                        <textarea id="user-intent" placeholder="Describe character posture, mood, dynamic presence, studio lighting..." class="w-full bg-neutral-bg border border-gray-200 rounded-2xl p-4 text-xs focus:ring-2 focus:ring-accent-gold outline-none h-24 transition-all resize-none shadow-inner leading-relaxed">Warm romantic atmosphere, intimate couple embrace, soft golden sunset rim lighting, striking direct gaze, soft silk garment details, cinematic high-resolution photorealism.</textarea>
+                    </div>
+
+                    <!-- Wardrobe, Aspect & Batch Count Controls -->
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold mb-1.5 text-gray-500 uppercase">Wardrobe</label>
+                            <select id="fabric-type" class="w-full bg-neutral-bg border border-gray-200 rounded-xl px-2.5 py-2 text-[11px] outline-none focus:ring-1 focus:ring-accent-gold shadow-sm">
+                                <option value="draped Armani silk slip dress">Armani Silk Slip</option>
+                                <option value="delicate lace intimates peignoir">Lace Peignoir</option>
+                                <option value="athletic sleeveless workout crop top">Sleeveless Crop Top</option>
+                                <option value="minimal high-cut fitness bodysuit">Fitness Bodysuit</option>
+                                <option value="translucent chiffon peignoir gown">Chiffon Gown</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold mb-1.5 text-gray-500 uppercase">Aspect Ratio</label>
+                            <select id="aspect-ratio" onchange="updateViewportAspect()" class="w-full bg-neutral-bg border border-gray-200 rounded-xl px-2.5 py-2 text-[11px] outline-none focus:ring-1 focus:ring-accent-gold shadow-sm">
+                                <option value="9:16">9:16 (Vertical)</option>
+                                <option value="16:9">16:9 (Widescreen)</option>
+                                <option value="1:1">1:1 (Square)</option>
+                                <option value="3:4">3:4 (Portrait)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold mb-1.5 text-gray-500 uppercase">Batch Count</label>
+                            <select id="batch-count" class="w-full bg-neutral-bg border border-gray-200 rounded-xl px-2.5 py-2 text-[11px] outline-none focus:ring-1 focus:ring-accent-gold shadow-sm">
+                                <option value="1">1 Frame</option>
+                                <option value="2">2 Frames</option>
+                                <option value="4" selected>4 Frames</option>
+                                <option value="6">6 Frames</option>
+                                <option value="8">8 Frames</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Generation Buttons -->
+                    <div class="pt-2 grid grid-cols-2 gap-3">
+                        <button id="generate-btn" onclick="synthesizePortrait()" class="w-full bg-studio-dark text-white font-bold py-3.5 rounded-2xl hover:bg-accent-gold transition-all flex items-center justify-center gap-2 group shadow-lg text-xs">
+                            <span id="generate-btn-text">Manifest Single Frame</span>
+                            <span class="group-hover:translate-x-1 transition-transform">→</span>
+                        </button>
+                        <button id="batch-generate-btn" onclick="generateBatchSequence()" class="w-full bg-accent-gold/10 text-accent-gold border border-accent-gold/30 font-bold py-3.5 rounded-2xl hover:bg-accent-gold hover:text-white transition-all flex items-center justify-center gap-2 shadow-sm text-xs">
+                            <span>⚡ Manifest Batch Render</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Canvas Viewport with Zoom/Pan & Direct Downloads -->
+        <div class="lg:col-span-7 space-y-6">
+            
+            <div class="glass-panel p-5 md:p-6 rounded-3xl shadow-sm space-y-4 border border-gray-200/80">
+                <!-- Viewport Header -->
+                <div class="flex items-center justify-between bg-studio-dark/95 backdrop-blur px-4 py-2.5 rounded-2xl border border-gray-800 text-white">
+                    <div class="flex items-center gap-2 text-xs font-medium">
+                        <span class="text-accent-gold">🎞️</span>
+                        <span>Synthesis Viewport</span>
+                        <span id="resolution-badge" class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-md border border-emerald-500/30">NATIVE HIGH-RESOLUTION OUTPUT</span>
+                    </div>
+                    <!-- Zoom Controls Toolbar -->
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="adjustZoom(-0.25)" class="px-2 py-1 bg-white/10 hover:bg-white/20 rounded text-xs text-gray-200" title="Zoom Out">-</button>
+                        <span id="zoom-level-text" class="text-[10px] font-mono px-1">100%</span>
+                        <button onclick="adjustZoom(0.25)" class="px-2 py-1 bg-white/10 hover:bg-white/20 rounded text-xs text-gray-200" title="Zoom In">+</button>
+                        <button onclick="resetZoom()" class="px-2 py-1 bg-white/10 hover:bg-white/20 rounded text-xs text-gray-200 text-[10px]" title="Reset View">Reset</button>
+                    </div>
+                </div>
+
+                <!-- Interactive Viewport Canvas Area -->
+                <div id="viewport-canvas-wrapper" class="w-full aspect-[4/5] bg-studio-dark rounded-2xl relative overflow-hidden flex items-center justify-center shadow-2xl group border border-gray-800 transition-all duration-300">
+                    
+                    <!-- Placeholder -->
+                    <div id="canvas-placeholder-content" class="absolute inset-0 flex flex-col items-center justify-center p-8 text-center text-white/80 transition-opacity duration-500 bg-gradient-to-b from-studio-card to-studio-dark z-10">
+                        <div class="w-16 h-16 rounded-full bg-accent-gold/20 border border-accent-gold/40 flex items-center justify-center text-2xl mb-4 shadow-[0_0_25px_rgba(197,160,89,0.3)] animate-pulse">✨</div>
+                        <h3 class="font-serif text-2xl mb-2 text-white">Aura Viewport</h3>
+                        <p class="text-xs text-gray-400 max-w-sm font-light leading-relaxed">Click "Manifest Single Frame" or "Manifest Batch Render" to output high-resolution photorealistic frames.</p>
+                    </div>
+
+                    <!-- Active Image Layer with Interactive Drag Zoom & Tactile Overlay Nodes -->
+                    <div id="rendered-character-layer" class="absolute inset-0 hidden flex items-center justify-center bg-black overflow-hidden cursor-grab">
+                        <img id="active-viewport-img" src="" class="viewport-image max-w-full max-h-full object-contain" alt="Synthesized Character Frame" />
+                        
+                        <!-- Tactile Target Overlay Nodes -->
+                        <div class="absolute inset-0 pointer-events-none z-10">
+                            <button onclick="interactAnatomicalNode('head')" class="target-node pointer-events-auto absolute top-[15%] left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-accent-gold/40 border border-accent-gold flex items-center justify-center text-[10px] text-white font-bold" title="Face / Direct Gaze Target">👁️</button>
+                            <button onclick="interactAnatomicalNode('shoulders')" class="target-node pointer-events-auto absolute top-[28%] left-[30%] w-6 h-6 rounded-full bg-accent-gold/40 border border-accent-gold flex items-center justify-center text-[10px] text-white font-bold" title="Shoulder / Posture Tension">💪</button>
+                            <button onclick="interactAnatomicalNode('torso')" class="target-node pointer-events-auto absolute top-[38%] left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-accent-gold/40 border border-accent-gold flex items-center justify-center text-[10px] text-white font-bold" title="Torso / Chest Respiration">🫁</button>
+                            <button onclick="interactAnatomicalNode('thighs')" class="target-node pointer-events-auto absolute top-[65%] left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-accent-gold/40 border border-accent-gold flex items-center justify-center text-[10px] text-white font-bold" title="Leg Stance / Quad Muscle">🦵</button>
+                        </div>
+
+                        <!-- Floating Controls Overlay -->
+                        <div class="absolute bottom-4 left-4 right-4 flex justify-between items-end z-20 pointer-events-none">
+                            <div class="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 pointer-events-auto">
+                                <h4 id="active-frame-title" class="font-serif text-xs font-semibold text-white drop-shadow">Synthesized Character Output</h4>
+                                <span id="active-ratio-badge" class="text-[9px] font-mono text-accent-gold">FORMAT: 9:16</span>
+                            </div>
+                            
+                            <!-- Reliable Direct Download Button -->
+                            <button onclick="downloadActiveFrameDirect()" class="bg-accent-gold text-studio-dark font-bold px-4 py-2 rounded-xl text-xs hover:bg-yellow-500 transition-all shadow-xl flex items-center gap-1.5 pointer-events-auto">
+                                <span>📥 Download Full-Resolution Image</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Loading Overlay -->
+                    <div id="loading-overlay" class="absolute inset-0 bg-studio-dark/90 backdrop-blur-md hidden flex flex-col items-center justify-center gap-4 text-white z-30">
+                        <div class="loader-ring"></div>
+                        <p id="loading-status-text" class="text-xs font-mono tracking-widest uppercase text-accent-gold px-6 text-center">Synthesizing with Gemini 3.1 API...</p>
+                    </div>
+                </div>
+
+                <!-- Pose Readout -->
+                <div class="flex items-center justify-between pt-1">
+                    <span class="text-xs text-gray-500 font-medium">Build Parameters:</span>
+                    <span id="active-pose-indicator" class="text-xs font-mono text-accent-gold bg-accent-gold/10 px-2.5 py-1 rounded-full">Physique: Toned | Orbit: 0°</span>
+                </div>
+            </div>
+
+            <!-- Batch Vault Output Grid -->
+            <div id="batch-vault" class="glass-panel p-6 rounded-3xl shadow-sm space-y-4 border border-gray-200/80">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xs font-bold uppercase tracking-widest text-gray-500">⚡ Batch Synthesis Vault</h2>
+                        <p class="text-xs text-gray-400 mt-0.5">Generates consistent multi-frame outputs. Download frames individually in full resolution.</p>
+                    </div>
+                    <button onclick="downloadAllBatchFrames()" id="download-all-btn" class="hidden bg-studio-dark text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-accent-gold transition-all shadow-sm">
+                        📥 Export All Images
+                    </button>
+                </div>
+
+                <div id="batch-series-grid" class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+                    <!-- Frames rendered here dynamically -->
+                </div>
+            </div>
+
+            <!-- Context Memory & Importer -->
+            <div id="context-importer" class="glass-panel p-6 rounded-3xl shadow-sm space-y-4 border border-gray-200/80">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xs font-bold uppercase tracking-widest text-accent-dream">📥 Context Memory & Log Ingestion</h2>
+                        <p class="text-xs text-gray-400 mt-0.5">Import prompt history or user memory logs into the active prompt pipeline.</p>
+                    </div>
+                    <button onclick="parseContextInput()" class="bg-accent-dream text-white px-3.5 py-1.5 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm">
+                        Process Memory
+                    </button>
+                </div>
+                
+                <textarea id="raw-context-input" placeholder="Paste prompt logs, character descriptions, or context specifications..." class="w-full h-24 bg-neutral-bg border border-gray-200 rounded-2xl p-3 text-xs font-mono outline-none focus:ring-2 focus:ring-accent-dream resize-none"></textarea>
+                
+                <div id="context-parsed-output" class="hidden bg-white p-4 rounded-2xl border border-gray-200 text-xs font-mono space-y-2 max-h-48 overflow-y-auto">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Structured Context Memory:</span>
+                    <div id="context-summary-text" class="text-gray-700 whitespace-pre-wrap leading-relaxed"></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-10 border-t border-gray-200 text-center text-xs text-gray-400">
+        <p>Aura Studio v100.8 Master • Reference-Guided Generation & 1K / 2K / 4K Export</p>
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // State Management
+        let activeReferences = [];
+        let referenceBase64Data = [];
+        let cameraYaw = 0;
+        let radarX = 0.0;
+        let radarY = 0.0;
+        let isSynthesizing = false;
+        let selectedModel = 'gemini-3.1-flash-image';
+        let selectedImageSize = '2K';
+        let selectedExportFormat = 'jpeg';
+        try { selectedModel = localStorage.getItem('aura.model') || selectedModel; selectedImageSize = localStorage.getItem('aura.imageSize') || selectedImageSize; selectedExportFormat = localStorage.getItem('aura.exportFormat') || selectedExportFormat; } catch (_) {}
+        let currentActiveImageUrl = '';
+        let currentBatchImages = [];
+        
+        // Zoom & Pan Canvas State
+        let currentScale = 1;
+        let panX = 0;
+        let panY = 0;
+
+        // Restore safe UI preferences. API secrets are never stored in browser storage.
+        document.getElementById('api-model-select').value = selectedModel;
+        document.getElementById('image-size-select').value = selectedImageSize;
+        document.getElementById('export-format-select').value = selectedExportFormat;
+        try { document.getElementById('app-access-password').value = sessionStorage.getItem('aura.accessPassword') || ''; } catch (_) {}
+        if (selectedModel === 'gemini-3.1-flash-lite-image') document.getElementById('image-size-select').value = selectedImageSize = '1K';
+        document.getElementById('engine-badge').textContent = selectedModel.toUpperCase().replace('GEMINI-', 'GEMINI ');
+
+        document.getElementById('api-model-select').addEventListener('change', function () {
+            if (this.value === 'gemini-3.1-flash-lite-image') {
+                document.getElementById('image-size-select').value = '1K';
+                showToast('Flash Lite supports 1K image output only.');
+            }
+        });
+
+        function showToast(message, isError = false) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `studio-toast ${isError ? 'error' : ''}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 50);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 400);
+            }, 3500);
+        }
+
+        function scrollToSection(id) {
+            const el = document.getElementById(id);
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function toggleMagicDirector() {
+            document.getElementById('magic-modal').classList.toggle('hidden');
+        }
+
+        function toggleSettingsModal() {
+            document.getElementById('settings-modal').classList.toggle('hidden');
+        }
+
+        function updateViewportAspect() {
+            const ratio = document.getElementById('aspect-ratio').value;
+            document.getElementById('active-ratio-badge').textContent = `FORMAT: ${ratio}`;
+        }
+
+        function saveSettings() {
+            selectedModel = document.getElementById('api-model-select').value;
+            selectedImageSize = document.getElementById('image-size-select').value;
+            selectedExportFormat = document.getElementById('export-format-select').value;
+            const accessPassword = document.getElementById('app-access-password').value;
+            try { if (accessPassword) sessionStorage.setItem('aura.accessPassword', accessPassword); else sessionStorage.removeItem('aura.accessPassword'); } catch (_) {}
+            if (selectedModel === 'gemini-3.1-flash-lite-image' && selectedImageSize !== '1K') {
+                selectedImageSize = '1K';
+                document.getElementById('image-size-select').value = '1K';
+                showToast('Flash Lite supports 1K image output only; resolution was set to 1K.');
+            }
+            try { localStorage.setItem('aura.model', selectedModel); localStorage.setItem('aura.imageSize', selectedImageSize); localStorage.setItem('aura.exportFormat', selectedExportFormat); } catch (_) {}
+            const badge = document.getElementById('engine-badge');
+            if (badge) badge.textContent = selectedModel.toUpperCase().replace('GEMINI-', 'GEMINI ');
+            toggleSettingsModal();
+            showToast(`Settings saved · ${selectedModel} · ${selectedImageSize}`);
+        }
+
+        // Body Slider Updates
+        function updateBodySliders() {
+            const physVal = parseInt(document.getElementById('slider-physique').value);
+            const sweatVal = parseInt(document.getElementById('slider-sweat').value);
+
+            let physDesc = "Athletic Toned";
+            if (physVal < 35) physDesc = "Slender Lean";
+            else if (physVal > 65) physDesc = "Soft Curve Contour";
+
+            document.getElementById('physique-val-display').textContent = physDesc;
+            document.getElementById('sweat-val-display').textContent = sweatVal > 50 ? "Glistening Sheen" : "Subtle Matte";
+            document.getElementById('active-pose-indicator').textContent = `Physique: ${physDesc} | Orbit: ${cameraYaw}°`;
+        }
+
+        function updateCameraAngle() {
+            cameraYaw = document.getElementById('camera-yaw').value;
+            document.getElementById('camera-angle-readout').textContent = `Orbit: ${cameraYaw}°`;
+            updateBodySliders();
+        }
+
+        function cleanPromptText() {
+            const intentField = document.getElementById('user-intent');
+            let text = intentField.value;
+            
+            const phrases = [
+                /hyper-detailed skin micro-texture,?/gi,
+                /glistening sweat beads on chest and collarbone,?/gi,
+                /athletic posture,?/gi,
+                /volumetric rim lighting,?/gi,
+                /(?:8k|4k) resolution,?/gi,
+                /photorealistic.,?/gi
+            ];
+
+            phrases.forEach(regex => {
+                let first = true;
+                text = text.replace(regex, (match) => {
+                    if (first) { first = false; return match; }
+                    return '';
+                });
+            });
+
+            intentField.value = text.replace(/\s+/g, ' ').replace(/,\s*,/g, ',').trim();
+            showToast('Cleaned redundant duplicate prompt descriptors!');
+        }
+
+        async function compressReference(file) {
+            if (!file.type || !['image/jpeg','image/png','image/webp'].includes(file.type)) throw new Error('Use JPG, PNG or WebP reference images.');
+            if (file.size > 12 * 1024 * 1024) throw new Error('Each reference image must be under 12 MB.');
+            if (!('createImageBitmap' in window)) throw new Error('This browser cannot prepare reference images. Update Chrome and try again.');
+            const bitmap = await createImageBitmap(file);
+            let maxSide = 1024;
+            let quality = 0.76;
+            let dataUrl = '';
+            for (let attempt = 0; attempt < 6; attempt++) {
+                const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+                canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                dataUrl = canvas.toDataURL('image/jpeg', quality);
+                if (dataUrl.length < 620000) break;
+                if (attempt % 2 === 0) quality = Math.max(0.52, quality - 0.1); else maxSide = Math.round(maxSide * 0.82);
+            }
+            bitmap.close?.();
+            const data = dataUrl.split(',')[1] || '';
+            if (!data || data.length >= 620000) throw new Error('This reference is still too large after compression. Try a smaller image.');
+            return { mimeType: 'image/jpeg', data, dataUrl, name: file.name };
+        }
+
+        async function handleReferenceUpload(input) {
+            const previewArea = document.getElementById('ref-preview-area');
+            const placeholder = document.getElementById('ref-placeholder');
+            const clearBtn = document.getElementById('clear-refs-btn');
+            const statusBadge = document.getElementById('anchor-status');
+            const incoming = Array.from(input.files || []);
+            input.value = '';
+            if (!incoming.length) return;
+            const room = Math.max(0, 5 - referenceBase64Data.length);
+            if (!room) { showToast('Maximum 5 reference images. Clear an anchor to add another.', true); return; }
+            if (incoming.length > room) showToast(`Only ${room} more reference image(s) can be added.`, true);
+            placeholder.style.display = 'none';
+            clearBtn.classList.remove('hidden');
+            for (const file of incoming.slice(0, room)) {
+                try {
+                    const ref = await compressReference(file);
+                    referenceBase64Data.push({ mimeType: ref.mimeType, data: ref.data, name: ref.name });
+                    activeReferences.push({ name: ref.name });
+                    const thumb = document.createElement('div');
+                    thumb.className = 'relative w-14 h-14 rounded-xl overflow-hidden border-2 border-accent-gold shadow-md shrink-0';
+                    const img = document.createElement('img'); img.src = ref.dataUrl; img.alt = ref.name; img.className = 'w-full h-full object-cover';
+                    thumb.appendChild(img); previewArea.appendChild(thumb);
+                } catch (err) { showToast(err.message || 'Could not prepare reference image.', true); }
+            }
+            const count = referenceBase64Data.length;
+            statusBadge.textContent = `${count} image${count===1?'':'s'} ready`;
+            statusBadge.classList.toggle('hidden', count === 0);
+            clearBtn.classList.toggle('hidden', count === 0);
+            showToast(count ? `Reference previews ready (${count}/5).` : 'No reference images were added.', !count);
+        }
+
+        function clearReferences(e) {
+            e?.stopPropagation?.();
+            activeReferences = [];
+            referenceBase64Data = [];
+            const previewArea = document.getElementById('ref-preview-area');
+            previewArea.innerHTML = '';
+            const placeholder = document.createElement('div');
+            placeholder.id = 'ref-placeholder';
+            placeholder.className = 'text-center w-full pointer-events-none';
+            placeholder.innerHTML = '<span class="text-2xl block mb-1">⚓</span><span class="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Drop Reference Images (Guides Character & Style)</span>';
+            previewArea.appendChild(placeholder);
+            document.getElementById('clear-refs-btn').classList.add('hidden');
+            document.getElementById('anchor-status').classList.add('hidden');
+            showToast('All reference images cleared.');
+        }
+
+        // Radar Drag Handling
+        const radarContainer = document.getElementById('radar-container');
+        const radarNode = document.getElementById('radar-node');
+        const radarCoords = document.getElementById('radar-coords');
+        let isDraggingRadar = false;
+
+        function updateRadarPosition(clientX, clientY) {
+            const rect = radarContainer.getBoundingClientRect();
+            let x = clientX - rect.left;
+            let y = clientY - rect.top;
+
+            x = Math.max(10, Math.min(rect.width - 10, x));
+            y = Math.max(10, Math.min(rect.height - 10, y));
+
+            radarNode.style.left = `${x}px`;
+            radarNode.style.top = `${y}px`;
+
+            radarX = ((x / rect.width) * 2 - 1).toFixed(2);
+            radarY = (-((y / rect.height) * 2 - 1)).toFixed(2);
+
+            radarCoords.textContent = `[ ${radarX}, ${radarY} ]`;
+        }
+
+        radarContainer.addEventListener('pointerdown', (e) => {
+            isDraggingRadar = true;
+            radarContainer.setPointerCapture?.(e.pointerId);
+            updateRadarPosition(e.clientX, e.clientY);
+        });
+        radarContainer.addEventListener('pointermove', (e) => {
+            if (isDraggingRadar) updateRadarPosition(e.clientX, e.clientY);
+        });
+        radarContainer.addEventListener('pointerup', () => {
+            if (isDraggingRadar) showToast(`Semantic Radar aligned to [ ${radarX}, ${radarY} ]`);
+            isDraggingRadar = false;
+        });
+        radarContainer.addEventListener('pointercancel', () => { isDraggingRadar = false; });
+
+        // Viewport Interactive Zoom Controls
+        function adjustZoom(delta) {
+            currentScale = Math.max(0.5, Math.min(3.0, currentScale + delta));
+            applyZoomTransform();
+        }
+
+        function resetZoom() {
+            currentScale = 1;
+            panX = 0;
+            panY = 0;
+            applyZoomTransform();
+        }
+
+        function applyZoomTransform() {
+            const img = document.getElementById('active-viewport-img');
+            document.getElementById('zoom-level-text').textContent = `${Math.round(currentScale * 100)}%`;
+            img.style.transform = `scale(${currentScale}) translate(${panX}px, ${panY}px)`;
+        }
+
+        // Drag-to-pan works when the image is zoomed in; the viewport stays touch-friendly.
+        const imageLayer = document.getElementById('rendered-character-layer');
+        let panningImage = false, panPointerX = 0, panPointerY = 0;
+        imageLayer.addEventListener('pointerdown', (e) => {
+            if (currentScale <= 1 || e.target.closest('button')) return;
+            panningImage = true; panPointerX = e.clientX; panPointerY = e.clientY;
+            imageLayer.setPointerCapture?.(e.pointerId); imageLayer.classList.add('cursor-grabbing');
+        });
+        imageLayer.addEventListener('pointermove', (e) => {
+            if (!panningImage) return;
+            panX += (e.clientX - panPointerX) / currentScale;
+            panY += (e.clientY - panPointerY) / currentScale;
+            panPointerX = e.clientX; panPointerY = e.clientY; applyZoomTransform();
+        });
+        const stopPanning = () => { panningImage = false; imageLayer.classList.remove('cursor-grabbing'); };
+        imageLayer.addEventListener('pointerup', stopPanning);
+        imageLayer.addEventListener('pointercancel', stopPanning);
+
+        // Tactile Node Interaction
+        function interactAnatomicalNode(part) {
+            const intentField = document.getElementById('user-intent');
+            if (part === 'head') {
+                showToast('Targeted Head/Gaze Node: Direct gaze locked to camera lens.');
+                intentField.value += ", direct intimate gaze into camera, focused facial expression";
+            } else if (part === 'shoulders') {
+                showToast('Targeted Shoulder Node: Raised arm posture and shoulder blade tension.');
+                intentField.value += ", arms raised behind head, tense shoulder blades";
+            } else if (part === 'torso') {
+                showToast('Targeted Torso Node: Respiration depth & fine sweat sheen.');
+                intentField.value += ", chest open and breathing heavily, glowing skin with fine sweat beads";
+            } else if (part === 'thighs') {
+                showToast('Targeted Quad Node: Defined leg muscle contour.');
+                intentField.value += ", defined thigh muscle contour, strong athletic leg stance";
+            }
+            showToast('Prompt updated. Generate a frame when ready.');
+        }
+
+        // All Gemini calls go through the server-side route so the API key never reaches the browser.
+        async function fetchGeminiImage(fullPromptText) {
+            const modelToUse = selectedModel || 'gemini-3.1-flash-image';
+            const effectiveSize = modelToUse === 'gemini-3.1-flash-lite-image' ? '1K' : selectedImageSize;
+            const accessPassword = document.getElementById('app-access-password')?.value || (() => { try { return sessionStorage.getItem('aura.accessPassword') || ''; } catch (_) { return ''; } })();
+            const headers = { 'Content-Type': 'application/json' };
+            if (accessPassword) headers['X-Aura-Access-Password'] = accessPassword;
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    prompt: fullPromptText,
+                    model: modelToUse,
+                    aspectRatio: document.getElementById('aspect-ratio').value || '9:16',
+                    imageSize: effectiveSize,
+                    references: referenceBase64Data.map(ref => ({ mimeType: ref.mimeType, data: ref.data }))
+                })
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.error || `Image generation failed (${response.status}).`);
+            if (!result.image || !result.mimeType) throw new Error('The Gemini response did not contain an image. Try another prompt or model.');
+            return `data:${result.mimeType};base64,${result.image}`;
+        }
+
+        async function synthesizePortrait() {
+            if (isSynthesizing) return;
+            isSynthesizing = true;
+
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const placeholderContent = document.getElementById('canvas-placeholder-content');
+            const renderedLayer = document.getElementById('rendered-character-layer');
+            const btnText = document.getElementById('generate-btn-text');
+            const activeImg = document.getElementById('active-viewport-img');
+
+            loadingOverlay.classList.remove('hidden');
+            btnText.textContent = "Generating…";
+            document.getElementById('generate-btn').disabled = true;
+            const batchButton = document.getElementById('batch-generate-btn');
+            if (batchButton) batchButton.disabled = true;
+
+            const intent = document.getElementById('user-intent').value.trim();
+            const fabric = document.getElementById('fabric-type').value;
+            const physDesc = document.getElementById('physique-val-display').textContent;
+            const sweatDesc = document.getElementById('sweat-val-display').textContent;
+
+            const fullPrompt = `${intent}, wearing ${fabric}, body build: ${physDesc}, skin physics: ${sweatDesc}, camera orbit ${cameraYaw} degrees, spatial radar [${radarX}, ${radarY}], high-resolution photorealistic quality.`;
+
+            try {
+                const imageUrl = await fetchGeminiImage(fullPrompt);
+                currentActiveImageUrl = imageUrl;
+                activeImg.src = imageUrl;
+
+                placeholderContent.classList.add('hidden');
+                renderedLayer.classList.remove('hidden');
+                resetZoom();
+                showToast('Image generated successfully.');
+            } catch (err) {
+                showToast(err.message || 'Image generation failed. Check your access password, Gemini model access, and API configuration.', true);
+            } finally {
+                loadingOverlay.classList.add('hidden');
+                btnText.textContent = "Manifest Single Frame";
+                document.getElementById('generate-btn').disabled = false;
+                const batchButton = document.getElementById('batch-generate-btn');
+                if (batchButton) batchButton.disabled = false;
+                isSynthesizing = false;
+            }
+        }
+
+        async function downloadActiveFrameDirect() {
+            if (!currentActiveImageUrl) { showToast('No generated image is available to download.', true); return; }
+            try { await downloadImageInSelectedFormat(currentActiveImageUrl, `aura-character-${Date.now()}`); showToast('Image download started.'); }
+            catch (err) { showToast(err.message || 'Could not export image.', true); }
+        }
+
+        async function downloadImageInSelectedFormat(dataUrl, basename) {
+            const targetMime = selectedExportFormat === 'png' ? 'image/png' : 'image/jpeg';
+            const targetExt = selectedExportFormat === 'png' ? 'png' : 'jpg';
+            if (dataUrl.startsWith(`data:${targetMime};`)) {
+                const link = document.createElement('a'); link.href = dataUrl; link.download = `${basename}.${targetExt}`;
+                document.body.appendChild(link); link.click(); link.remove(); return;
+            }
+            const image = new Image();
+            await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Could not decode the generated image for export.')); image.src = dataUrl; });
+            const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Image export is not supported in this browser.');
+            if (targetMime === 'image/jpeg') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+            ctx.drawImage(image, 0, 0);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, targetMime, targetMime === 'image/jpeg' ? 0.94 : undefined));
+            if (!blob) throw new Error('The browser could not export the image in the selected format.');
+            const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `${basename}.${targetExt}`;
+            document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+        }
+
+        async function generateBatchSequence() {
+            if (isSynthesizing) return;
+            const count = Math.max(1, Math.min(8, parseInt(document.getElementById('batch-count').value, 10) || 4));
+            if (count >= 4 && !window.confirm(`Aura will submit ${count} separate image-generation requests to Gemini. API charges or quota use may apply. Continue?`)) return;
+            const grid = document.getElementById('batch-series-grid');
+            const downloadAllBtn = document.getElementById('download-all-btn');
+            const singleBtn = document.getElementById('generate-btn');
+            const batchBtn = document.getElementById('batch-generate-btn');
+            grid.innerHTML = '';
+            currentBatchImages = new Array(count).fill(null);
+            downloadAllBtn.classList.remove('hidden');
+            isSynthesizing = true;
+            singleBtn.disabled = true; batchBtn.disabled = true;
+            singleBtn.classList.add('opacity-50'); batchBtn.classList.add('opacity-50');
+            showToast(`Starting batch of ${count} image${count === 1 ? '' : 's'}…`);
+            const intent = document.getElementById('user-intent').value.trim();
+            let succeeded = 0;
+            const cards = [];
+            for (let i = 0; i < count; i++) {
+                const card = document.createElement('div');
+                card.className = 'aspect-[3/4] bg-neutral-bg rounded-2xl border border-gray-200 flex flex-col items-center justify-center p-3 text-center relative overflow-hidden group cursor-pointer hover:border-accent-gold transition-all';
+                card.innerHTML = `<div class="loader-ring mb-2"></div><span class="text-[10px] text-gray-500 font-mono">Generating frame ${i + 1} of ${count}…</span>`;
+                grid.appendChild(card); cards.push(card);
+            }
+            try {
+                for (let i = 0; i < count; i++) {
+                    document.getElementById('loading-status-text').textContent = `Batch render · ${i + 1} / ${count}`;
+                    const prompt = `${intent}, camera composition variation ${[0, 45, 90, 180, 270, 30, 135, 315][i]} degrees, distinct frame ${i + 1} of a coherent visual series. Preserve the main subject and reference traits, while making this frame's composition distinct.`;
+                    try {
+                        const imageUrl = await fetchGeminiImage(prompt);
+                        currentBatchImages[i] = imageUrl; succeeded++;
+                        const img = document.createElement('img'); img.src = imageUrl; img.alt = `Aura generated frame ${i + 1}`;
+                        img.className = 'absolute inset-0 w-full h-full object-cover';
+                        const overlay = document.createElement('div'); overlay.className = 'absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2';
+                        const dl = document.createElement('button'); dl.className = 'bg-accent-gold text-black text-[9px] font-bold py-1.5 px-2 rounded-lg'; dl.textContent = 'Download image';
+                        dl.addEventListener('click', async ev => { ev.stopPropagation(); try { await downloadSingleBatchFrame(imageUrl, i + 1); } catch (err) { showToast(err.message || 'Download failed.', true); } });
+                        overlay.appendChild(dl); card.innerHTML = ''; card.append(img, overlay);
+                        card.addEventListener('click', () => {
+                            currentActiveImageUrl = imageUrl;
+                            document.getElementById('active-viewport-img').src = imageUrl;
+                            document.getElementById('canvas-placeholder-content').classList.add('hidden');
+                            document.getElementById('rendered-character-layer').classList.remove('hidden');
+                            document.getElementById('active-frame-title').textContent = `Batch Frame ${i + 1}`;
+                            resetZoom();
+                        });
+                    } catch (err) {
+                        card.innerHTML = `<div class="text-accent-terra text-sm font-semibold">Frame ${i + 1} failed</div><p class="text-[10px] text-gray-500 mt-2">${String(err.message || 'Generation error').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</p>`;
+                    }
+                }
+                if (succeeded && currentBatchImages.find(Boolean)) {
+                    const firstIndex = currentBatchImages.findIndex(Boolean);
+                    currentActiveImageUrl = currentBatchImages[firstIndex];
+                    document.getElementById('active-viewport-img').src = currentActiveImageUrl;
+                    document.getElementById('canvas-placeholder-content').classList.add('hidden');
+                    document.getElementById('rendered-character-layer').classList.remove('hidden');
+                    document.getElementById('active-frame-title').textContent = `Batch Frame ${firstIndex + 1}`;
+                    resetZoom();
+                }
+                showToast(`Batch finished · ${succeeded}/${count} images generated${succeeded < count ? ' (some failed)' : ''}.`, succeeded === 0);
+            } finally {
+                isSynthesizing = false; singleBtn.disabled = false; batchBtn.disabled = false;
+                singleBtn.classList.remove('opacity-50'); batchBtn.classList.remove('opacity-50');
+                document.getElementById('loading-status-text').textContent = 'Synthesizing with Gemini Image API…';
+            }
+        }
+
+        async function downloadSingleBatchFrame(imgUrl, index) {
+            if (!imgUrl) throw new Error('This batch frame is not ready yet.');
+            await downloadImageInSelectedFormat(imgUrl, `aura-batch-frame-${String(index).padStart(2,'0')}-${Date.now()}`);
+        }
+
+        async function downloadAllBatchFrames() {
+            const ready = currentBatchImages.map((url, i) => ({url, i})).filter(item => item.url);
+            if (!ready.length) { showToast('No completed batch images to export.', true); return; }
+            for (const item of ready) {
+                try { await downloadSingleBatchFrame(item.url, item.i + 1); await new Promise(resolve => setTimeout(resolve, 250)); }
+                catch (err) { showToast(err.message || 'A batch download failed.', true); }
+            }
+            showToast(`Started ${ready.length} image download${ready.length === 1 ? '' : 's'} in ${selectedExportFormat.toUpperCase()} format.`);
+        }
+
+        function runMagicConfig(theme) {
+            toggleMagicDirector();
+            if (theme === 'Romantic Warmth') loadPreset('romantic');
+            else if (theme === 'Athletic Gymnastics') loadPreset('athletic');
+            else loadPreset('glamour');
+        }
+
+        function loadPreset(presetName) {
+            if (presetName === 'romantic') {
+                document.getElementById('slider-physique').value = 45;
+                document.getElementById('slider-sweat').value = 40;
+                document.getElementById('user-intent').value = "Warm romantic atmosphere, intimate couple embrace, soft golden sunset rim lighting, striking direct gaze, soft silk garment details, cinematic high-resolution photorealism.";
+                document.getElementById('fabric-type').value = "draped Armani silk slip dress";
+            } else if (presetName === 'athletic') {
+                document.getElementById('slider-physique').value = 40;
+                document.getElementById('slider-sweat').value = 80;
+                document.getElementById('user-intent').value = "Sports athletic gymnast fit, sleeveless crop top, chest open and breathing heavily, glowing skin with fine sweat beads, striking direct gaze.";
+                document.getElementById('fabric-type').value = "athletic sleeveless workout crop top";
+            } else if (presetName === 'glamour') {
+                document.getElementById('slider-physique').value = 50;
+                document.getElementById('slider-sweat').value = 50;
+                document.getElementById('user-intent').value = "Glamour studio portrait, elegant posture, soft glowing skin sheen, polished key studio lighting, draped satin dress.";
+                document.getElementById('fabric-type').value = "delicate lace intimates peignoir";
+            }
+            updateBodySliders();
+            showToast('Preset loaded. Generate a frame when ready.');
+        }
+
+        function parseContextInput() {
+            const rawText = document.getElementById('raw-context-input').value.trim();
+            if (!rawText) {
+                showToast('Please paste context text to parse.', true);
+                return;
+            }
+
+            const outputContainer = document.getElementById('context-parsed-output');
+            const summaryText = document.getElementById('context-summary-text');
+
+            summaryText.textContent = `• Context ingested: ${rawText.length} characters\n• Reference images: ${referenceBase64Data.length} attached\n• Context copied into the prompt field for review before generation.`;
+            
+            outputContainer.classList.remove('hidden');
+            document.getElementById('user-intent').value = rawText.slice(0, 5000);
+            showToast('Context memory successfully ingested into prompt architect!');
+        }
+    </script>
+</body>
+</html>
